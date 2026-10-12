@@ -14,7 +14,11 @@
     descartada:   { label: 'Descartada',         emoji: '🔴', fg: 'var(--bad)',       bg: 'var(--bad-soft)' },
     proveedor:    { label: 'Ya tiene proveedor', emoji: '⚫', fg: 'var(--dark-chip)', bg: 'var(--dark-chip-soft)' }
   };
-  var CAMPOS = { decisor: 'decisor', contacto: 'contacto', fecha: 'fecha', proximo: 'proximoPaso', notas: 'notas' };
+  /* Los campos que edita Janice. OJO: el boton Guardar manda TODOS los de aqui,
+   * asi que lo que el sistema escriba en una clave que este en esta lista se
+   * pierde en cuanto ella guarde. Por eso `propuestaEstado` NO esta: lo escribe
+   * el servidor y la tarjeta solo lo enseña. */
+  var CAMPOS = { decisor: 'decisor', contacto: 'contacto', correo: 'correo', fecha: 'fecha', proximo: 'proximoPaso', notas: 'notas' };
 
   var codigo = null, usuario = null, docs = [], filtro = 'todas';
   var guion = window.GUION_DEFAULT, guionEdit = false;
@@ -130,13 +134,17 @@
       (d.angulo ? '<div class="angulo">"' + esc(d.angulo) + '"</div>' : '') + fichaHtml(d) +
       '<div class="field-row"><label class="f" for="decisor-' + d.id + '">Decisor</label><label class="f" for="contacto-' + d.id + '">Contacto</label></div>' +
       '<div class="field-row">' + inp('decisor', 'pendiente') + inp('contacto', 'tel / email') + '</div>' +
+      '<label class="f" for="correo-' + d.id + '">Correo para enviarle la propuesta</label>' +
+      inp('correo', d.correoSugerido ? d.correoSugerido + ' (sugerido)' : 'nombre@empresa.com') +
       '<div class="field-row"><label class="f" for="estado-' + d.id + '">Estado</label><label class="f" for="fecha-' + d.id + '">Próxima fecha</label></div>' +
       '<div class="field-row"><select class="f" id="estado-' + d.id + '">' + opts + '</select>' + inp('fecha', 'ej. 25 sept') + '</div>' +
       '<label class="f" for="proximo-' + d.id + '">Próximo paso</label>' + inp('proximo', 'ej. reagendar, confirmar hora') +
       '<label class="f" for="notas-' + d.id + '">Notas de la llamada</label>' +
       '<textarea class="f" id="notas-' + d.id + '" placeholder="qué dijo, con quién hablaste…">' + esc(d.notas || '') + '</textarea>' +
       '<div class="card-foot"><button class="touch-btn" data-touch="' + d.id + '">+1 toque hoy</button>' +
+      '<button class="prop-btn" data-propuesta="' + d.id + '">📨 Pedir propuesta</button>' +
       '<button class="save-btn" data-save="' + d.id + '">💾 Guardar</button></div>' +
+      (d.propuestaEstado ? '<div class="prop-chip">📨 ' + esc(d.propuestaEstado) + '</div>' : '') +
       '<div class="card-meta"><span class="save-state ' + (ss ? ss.cls : '') + '">' + (ss ? esc(ss.text) : '') + '</span>' +
       '<span class="touch-meta">' + (d.toques ? d.toques + ' toques' : 'sin toques') + (d.ultimoToque ? ' · último ' + esc(d.ultimoToque) : '') + '</span></div>' +
       (quien ? '<div class="who-meta">' + quien + '</div>' : '') +
@@ -173,6 +181,9 @@
         guardar(id, p);
       };
     });
+    $('pipeline-grid').querySelectorAll('[data-propuesta]').forEach(function (b) {
+      b.onclick = function () { pedirPropuesta(b.getAttribute('data-propuesta'), b); };
+    });
     $('pipeline-grid').querySelectorAll('details.ficha').forEach(function (det) {
       det.addEventListener('toggle', function () { abiertas[det.getAttribute('data-ficha')] = det.open; });
     });
@@ -192,6 +203,43 @@
     pill.style.color = st.fg; pill.style.background = st.bg; pill.textContent = st.emoji + ' ' + st.label;
     card.querySelector('.touch-meta').textContent = (d.toques ? d.toques + ' toques' : 'sin toques') + (d.ultimoToque ? ' · último ' + d.ultimoToque : '');
     pintarEstado(d.id); renderStats();
+  }
+
+  /* Pedir propuesta: Elkin recibe el correo ya escrito y lo aprueba. Aqui NO se
+   * envia nada ni se cambia el estado comercial de la ficha — pedirla no es
+   * haberla mandado. Todo lo que puede salir mal (correo raro, una ya en
+   * marcha, una enviada hace nada) lo decide el servidor, que es el unico sitio
+   * donde no se puede saltar. */
+  function pedirPropuesta(id, boton) {
+    var d = docs.filter(function (x) { return x.id === id; })[0];
+    if (!d) return;
+    var correo = ($('correo-' + id).value || '').trim();
+    if (!correo) {
+      aviso('Escribe primero el correo de la persona a la que se la mandamos.');
+      $('correo-' + id).focus();
+      return;
+    }
+    if (!window.confirm('¿Pedir la propuesta de ' + (d.nombre || 'esta empresa') + ' para ' + correo + '?\n\n'
+                        + 'Elkin la revisa antes de que salga: no se envía nada todavía.')) return;
+
+    aviso('');
+    boton.disabled = true;
+    var antes = boton.textContent;
+    boton.textContent = 'pidiendo…';
+
+    rpc('crm_pedir_propuesta', { p_codigo: codigo, p_id: id, p_correo: correo }).then(function (r) {
+      boton.textContent = '📨 Pedida';
+      var avisos = (r && r.avisos) || [];
+      aviso(avisos.length
+        ? 'Pedida. Ojo: ' + avisos.join(' · ') + '. Elkin lo verá al revisarla.'
+        : 'Pedida. Elkin la revisa y te dice algo.');
+      // El servidor ya dejó el espejo en la ficha; se recarga para verlo.
+      cargar(true);
+    }, function (e) {
+      boton.disabled = false;
+      boton.textContent = antes;
+      aviso(e.message);
+    });
   }
 
   function guardar(id, patch) {

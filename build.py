@@ -6,12 +6,38 @@ miembros de la organizacion: Janice (externa) caia en "modo local" y perdia
 todo. Aqui se conserva su HTML/CSS y se sustituye la capa de datos por
 app.js, que guarda en Supabase.
 
-Uso: python build.py   (lee .original/index.html, escribe index.html y guion.js)
+Uso: python build.py   (lee la fuente, escribe index.html y guion.js)
+
+De donde sale la fuente, y por que no esta aqui
+-----------------------------------------------
+Este repo es PUBLICO (GitHub Pages lo sirve). El HTML original lleva nombres de
+empresas reales en su bloque <script>, que build.py recorta y por eso nunca se
+publica; subirlo al repo si los publicaria. De ahi el .gitignore.
+
+Pero entonces la fuente vivia en una sola carpeta de un solo ordenador, y sin
+ella este index.html solo se puede editar a mano. Asi que la copia buena esta en
+el vault, que es un repo PRIVADO, y aqui se busca en los dos sitios.
 """
-import io, os, re
+import io, os, re, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-src = io.open(os.path.join(BASE, ".original", "index.html"), encoding="utf-8").read()
+# crm-web -> fuerza-venta-espana -> CLAUDE
+RAIZ = os.path.dirname(os.path.dirname(BASE))
+FUENTES = [
+    os.path.join(BASE, ".original", "index.html"),
+    os.path.join(RAIZ, "Obsidian", "Segundo_Cerebro_AI-OPS", "projects", "crm-janice", "fuente", "index.html"),
+]
+
+ruta = next((f for f in FUENTES if os.path.exists(f)), None)
+if ruta is None:
+    sys.exit(
+        "No encuentro el HTML original del CRM. Lo busco en:\n  "
+        + "\n  ".join(FUENTES)
+        + "\n\nEsta en el vault (repo privado), en projects/crm-janice/fuente/.\n"
+        "No se sube a ESTE repo porque es publico y el original lleva nombres de clientes."
+    )
+print("fuente: %s" % ruta)
+src = io.open(ruta, encoding="utf-8").read()
 
 # ---------------------------------------------------------------- guion.js
 m = re.search(r"const GUION_DEFAULT = (\{.*?\n  \});", src, re.S)
@@ -51,6 +77,9 @@ EXTRA_CSS = """
   .who-meta{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-soft)}
   .muted{color:var(--ink-soft)}
   .add-form input{width:100%}
+  .prop-btn{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:6px 10px;border-radius:6px;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);cursor:pointer}
+  .prop-btn:disabled{opacity:.55;cursor:default}
+  .prop-chip{margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-soft);background:var(--surface-2);border-radius:6px;padding:5px 8px}
 """
 # el primer </style> es el del contenedor; el segundo es el del CRM
 i = html.index("</style>", html.index("</style>") + 1)
