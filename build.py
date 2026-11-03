@@ -120,7 +120,8 @@ sub('<div class="wrap">',
     '  </div>\n'
     '</div>\n\n<div class="wrap">')
 
-html += '<script src="guion.js"></script>\n<script src="app.js"></script>\n</body></html>\n'
+# sectores.js es propio (sección 05 del guion): build.py no lo genera ni lo pisa.
+html += '<script src="sectores.js"></script>\n<script src="guion.js"></script>\n<script src="app.js"></script>\n</body></html>\n'
 html = html.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
 
 io.open(os.path.join(BASE, "index.html"), "w", encoding="utf-8").write(html)

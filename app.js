@@ -21,7 +21,12 @@
   var CAMPOS = { decisor: 'decisor', contacto: 'contacto', correo: 'correo', fecha: 'fecha', proximo: 'proximoPaso', notas: 'notas' };
 
   var codigo = null, usuario = null, docs = [], filtro = 'todas';
-  var guion = window.GUION_DEFAULT, guionEdit = false;
+  // Los sectores viven en sectores.js (build.py regenera guion.js y no debe pisarlos).
+  var S = window.GUION_SECTORES || {};
+  var GUION_BASE = Object.assign({}, window.GUION_DEFAULT, {
+    sectores: S.sectores || [], sectoresIntro: S.intro || '', sectoresTransversal: S.transversal || null,
+  });
+  var guion = GUION_BASE, guionEdit = false;
   var saving = {}, saveState = {}, abiertas = {};
   var $ = function (id) { return document.getElementById(id); };
 
@@ -76,7 +81,7 @@
     if (!silencioso) conn('', 'cargando…');
     return rpc('crm_listar', { p_codigo: codigo }).then(function (d) {
       docs = d.empresas || [];
-      if (d.guion) guion = Object.assign({}, window.GUION_DEFAULT, d.guion);
+      if (d.guion) guion = Object.assign({}, GUION_BASE, d.guion);
       aviso(''); conn('live', 'conectado · actualizado ' + hora());
       renderFilters(); renderGrid(); if (!guionEdit) renderGuion();
     }).catch(function (e) { conn('off', 'sin conexión'); aviso('⚠️ ' + e.message); });
@@ -275,6 +280,38 @@
     });
   }
 
+  // Sector en una línea para el editor: Sector :: Cómo reconocerlo :: dolor; dolor :: ayuda; ayuda :: Pregunta gancho :: Caso (opcional)
+  function sectoresToText(arr) {
+    return (arr || []).map(function (s) {
+      return [s.sector, s.reconocer, (s.dolores || []).join('; '), (s.ayudas || []).join('; '), s.pregunta, s.caso].filter(function (x, i) { return i < 5 || x; }).map(function (x) { return x || ''; }).join(' :: ');
+    }).join('\n');
+  }
+  function parseSectores(t) {
+    var lista = function (x) { return String(x || '').split(';').map(function (y) { return y.trim(); }).filter(Boolean); };
+    return String(t || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) {
+      var p = l.split('::').map(function (x) { return x.trim(); });
+      var s = { sector: p[0] || '', reconocer: p[1] || '', dolores: lista(p[2]), ayudas: lista(p[3]), pregunta: p[4] || '' };
+      if (p[5]) s.caso = p[5];
+      return s;
+    });
+  }
+  function htmlSectores(d) {
+    var li = function (arr) { return '<ul>' + (arr || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; };
+    var t = d.sectoresTransversal;
+    return '<div class="g-section"><h2><span class="g-num">05</span>Dónde podemos ayudar según su sector</h2><p>' + esc(d.sectoresIntro) + '</p>' +
+      (d.sectores || []).map(function (s) {
+        return '<details class="msg"><summary>' + esc(s.sector) + '</summary><div class="msg-body">' +
+          '<p><b>Cómo reconocerlo en «Qué venden»:</b> ' + esc(s.reconocer) + '</p>' +
+          '<p><b>Lo que suele dolerles:</b></p>' + li(s.dolores) +
+          '<p><b>Cómo les ayudamos</b> (para que lo entiendas; en la llamada no se vende):</p>' + li(s.ayudas) +
+          (s.caso ? '<p><b>Caso real (sin nombres):</b> ' + esc(s.caso) + '</p>' : '') +
+          '<div class="script-line">«' + esc(s.pregunta) + '»</div></div></details>';
+      }).join('') +
+      (t ? '<details class="msg"><summary>' + esc(t.titulo) + '</summary><div class="msg-body">' + li(t.dolores) +
+        '<div class="script-line">«' + esc(t.pregunta) + '»</div></div></details>' : '') +
+      '</div>';
+  }
+
   function renderGuion() {
     var d = guion, c = $('guion-content'), btn = $('guion-edit-toggle');
     btn.classList.toggle('on', guionEdit);
@@ -286,16 +323,19 @@
         f('ed-cuatroP', '03 · Las 4P', rowsToText(d.cuatroP, 'p', 'que'), 5, 'Una fila por línea — Nombre :: Descripción') +
         f('ed-preguntas', '04 · Preguntas de cualificación', (d.preguntas || []).join('\n'), 4, 'Una pregunta por línea') +
         f('ed-preguntasNota', 'Nota tras las preguntas', d.preguntasNota, 2) +
-        f('ed-objeciones', '05 · Objeciones', rowsToText(d.objeciones, 'objecion', 'respuesta'), 6, 'Objeción :: Respuesta') +
-        f('ed-cierre', '06 · Cierre', d.cierre, 3) + f('ed-cierreNota', 'Nota de cierre', d.cierreNota, 2) +
-        f('ed-mensajes', '07 · Mensajes de respaldo', rowsToText(d.mensajes, 'titulo', 'texto'), 8, 'Título :: Texto') +
+        f('ed-sectores', '05 · Según su sector', sectoresToText(d.sectores), 10, 'Un sector por línea — Sector :: Cómo reconocerlo :: dolor; dolor :: ayuda; ayuda :: Pregunta gancho :: Caso (opcional)') +
+        f('ed-objeciones', '06 · Objeciones', rowsToText(d.objeciones, 'objecion', 'respuesta'), 6, 'Objeción :: Respuesta') +
+        f('ed-cierre', '07 · Cierre', d.cierre, 3) + f('ed-cierreNota', 'Nota de cierre', d.cierreNota, 2) +
+        f('ed-mensajes', '08 · Mensajes de respaldo', rowsToText(d.mensajes, 'titulo', 'texto'), 8, 'Título :: Texto') +
         f('ed-cadencia', 'Cadencia / meta', d.cadencia, 2) +
         '<div class="edit-actions"><button class="touch-btn" id="guion-save" type="button">💾 Guardar cambios</button><span class="save-state" id="guion-state"></span></div></div>';
       $('guion-save').onclick = function () {
         var v = function (id) { return $(id).value.trim(); };
         var nuevo = { apertura: v('ed-apertura'), frame: v('ed-frame'), frameSenal: v('ed-frameSenal'),
           cuatroP: parseRows(v('ed-cuatroP'), 'p', 'que'), preguntas: v('ed-preguntas').split('\n').map(function (x) { return x.trim(); }).filter(Boolean),
-          preguntasNota: v('ed-preguntasNota'), objeciones: parseRows(v('ed-objeciones'), 'objecion', 'respuesta'),
+          preguntasNota: v('ed-preguntasNota'), sectores: parseSectores(v('ed-sectores')),
+          sectoresIntro: d.sectoresIntro, sectoresTransversal: d.sectoresTransversal,
+          objeciones: parseRows(v('ed-objeciones'), 'objecion', 'respuesta'),
           cierre: v('ed-cierre'), cierreNota: v('ed-cierreNota'), mensajes: parseRows(v('ed-mensajes'), 'titulo', 'texto'), cadencia: v('ed-cadencia') };
         $('guion-save').disabled = true; $('guion-state').className = 'save-state pending'; $('guion-state').textContent = 'guardando…';
         rpc('crm_guardar_guion', { p_codigo: codigo, p_data: nuevo }).then(function () {
@@ -314,10 +354,11 @@
         (d.cuatroP || []).map(function (r) { return tr(r.p, r.que); }).join('') + '</tbody></table></div></div>' +
       '<div class="g-section"><h2><span class="g-num">04</span>Preguntas de cualificación</h2><ul>' +
         (d.preguntas || []).map(function (q) { return '<li>«' + esc(q) + '»</li>'; }).join('') + '</ul><p>' + esc(d.preguntasNota) + '</p></div>' +
-      '<div class="g-section"><h2><span class="g-num">05</span>Objeciones — nunca afirmar, siempre preguntar</h2><div class="table-wrap"><table class="g-table"><thead><tr><th>Objeción</th><th>Qué decir</th></tr></thead><tbody>' +
+      htmlSectores(d) +
+      '<div class="g-section"><h2><span class="g-num">06</span>Objeciones — nunca afirmar, siempre preguntar</h2><div class="table-wrap"><table class="g-table"><thead><tr><th>Objeción</th><th>Qué decir</th></tr></thead><tbody>' +
         (d.objeciones || []).map(function (o) { return tr('«' + o.objecion + '»', o.respuesta); }).join('') + '</tbody></table></div></div>' +
-      '<div class="g-section"><h2><span class="g-num">06</span>Cierre de Janice — agendar, no vender</h2><div class="script-line">«' + esc(d.cierre) + '»</div><p>' + esc(d.cierreNota) + '</p></div>' +
-      '<div class="g-section"><h2><span class="g-num">07</span>Mensajes de respaldo</h2><p>Personaliza el corchete antes de enviar — nunca copiar-pegar tal cual.</p>' +
+      '<div class="g-section"><h2><span class="g-num">07</span>Cierre de Janice — agendar, no vender</h2><div class="script-line">«' + esc(d.cierre) + '»</div><p>' + esc(d.cierreNota) + '</p></div>' +
+      '<div class="g-section"><h2><span class="g-num">08</span>Mensajes de respaldo</h2><p>Personaliza el corchete antes de enviar — nunca copiar-pegar tal cual.</p>' +
         (d.mensajes || []).map(function (m, i) { return '<details class="msg"><summary>' + esc(m.titulo) + ' <span class="copy-btn" data-msg="' + i + '">copiar</span></summary><div class="msg-body"><p>' + esc(m.texto) + '</p></div></details>'; }).join('') +
         '<p style="margin-top:12px;"><b>Cadencia:</b> ' + esc(d.cadencia) + '</p></div>';
     c.querySelectorAll('[data-msg]').forEach(function (b) {
