@@ -32,6 +32,28 @@
 
   function esc(s) { return (s == null ? '' : String(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function hora(d) { return (d ? new Date(d) : new Date()).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }); }
+
+  // ------------------------------------------------------------ última interacción (migración 034)
+  // `ultimaInteraccion` la calcula la base desde crm.actividad: cambios de Janice o Elkin y propuestas
+  // enviadas. No cuentan el alta automática ni la investigación automática.
+  var ORDEN_KEY = 'vetaCrmOrden', orden = 'reciente';
+  try { orden = localStorage.getItem(ORDEN_KEY) || 'reciente'; } catch (e) {}
+  function diasAtras(iso) {
+    var d = new Date(iso), hoy = new Date(); d.setHours(0, 0, 0, 0); hoy.setHours(0, 0, 0, 0);
+    return Math.round((hoy - d) / 86400000);
+  }
+  function cuando(iso) {
+    if (!iso) return '';
+    var n = diasAtras(iso);
+    if (n <= 0) return 'hoy ' + hora(iso);
+    if (n === 1) return 'ayer ' + hora(iso);
+    return new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + (n < 7 ? ' · hace ' + n + ' días' : '');
+  }
+  function grupoDe(iso) {
+    if (!iso) return 'Sin interacción todavía';
+    var n = diasAtras(iso);
+    return n <= 0 ? 'Hoy' : n === 1 ? 'Ayer' : n < 7 ? 'Esta semana' : n < 31 ? 'Este mes' : 'Antes';
+  }
   function slugify(s) { return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''); }
   function conn(cls, t) { $('conn-dot').className = 'dot ' + cls; $('conn-text').textContent = t; }
   function aviso(msg) { var b = $('error-banner'); b.textContent = msg || ''; b.hidden = !msg; }
@@ -111,9 +133,20 @@
     var opts = [['todas', 'Todas']].concat(Object.keys(STATUS).map(function (k) { return [k, STATUS[k].emoji + ' ' + STATUS[k].label]; }));
     $('filters-row').innerHTML = opts.map(function (o) {
       return '<button class="chip ' + (filtro === o[0] ? 'on' : '') + '" data-filter="' + o[0] + '">' + o[1] + '</button>';
-    }).join('');
-    $('filters-row').querySelectorAll('.chip').forEach(function (c) {
+    }).join('') +
+      '<span style="flex-basis:100%;height:0"></span>' +
+      [['reciente', '🕒 Recientes primero'], ['az', 'A-Z']].map(function (o) {
+        return '<button class="chip ' + (orden === o[0] ? 'on' : '') + '" data-orden="' + o[0] + '">' + o[1] + '</button>';
+      }).join('');
+    $('filters-row').querySelectorAll('[data-filter]').forEach(function (c) {
       c.onclick = function () { filtro = c.getAttribute('data-filter'); renderFilters(); renderGrid(); };
+    });
+    $('filters-row').querySelectorAll('[data-orden]').forEach(function (c) {
+      c.onclick = function () {
+        orden = c.getAttribute('data-orden');
+        try { localStorage.setItem(ORDEN_KEY, orden); } catch (e) {}
+        renderFilters(); renderGrid();
+      };
     });
   }
 
@@ -152,6 +185,7 @@
       (d.propuestaEstado ? '<div class="prop-chip">📨 ' + esc(d.propuestaEstado) + '</div>' : '') +
       '<div class="card-meta"><span class="save-state ' + (ss ? ss.cls : '') + '">' + (ss ? esc(ss.text) : '') + '</span>' +
       '<span class="touch-meta">' + (d.toques ? d.toques + ' toques' : 'sin toques') + (d.ultimoToque ? ' · último ' + esc(d.ultimoToque) : '') + '</span></div>' +
+      (d.ultimaInteraccion ? '<div class="who-meta">🕒 última interacción: ' + esc(cuando(d.ultimaInteraccion)) + '</div>' : '') +
       (quien ? '<div class="who-meta">' + quien + '</div>' : '') +
       '</div>';
   }
@@ -159,8 +193,29 @@
   function renderGrid() {
     renderStats();
     var vis = filtro === 'todas' ? docs : docs.filter(function (d) { return (d.estado || 'sin_tocar') === filtro; });
-    vis = vis.slice().sort(function (a, b) { return ((a.urgencia ? 0 : 1) - (b.urgencia ? 0 : 1)) || (a.nombre || '').localeCompare(b.nombre || ''); });
-    $('pipeline-grid').innerHTML = vis.map(cardHtml).join('') +
+    var porNombre = function (a, b) { return (a.nombre || '').localeCompare(b.nombre || ''); };
+    var porReciente = function (a, b) {
+      var ta = a.ultimaInteraccion ? Date.parse(a.ultimaInteraccion) : 0, tb = b.ultimaInteraccion ? Date.parse(b.ultimaInteraccion) : 0;
+      return (tb - ta) || porNombre(a, b);   // lo último tocado arriba; las nunca tocadas, al final por nombre
+    };
+    vis = vis.slice().sort(function (a, b) {
+      return ((a.urgencia ? 0 : 1) - (b.urgencia ? 0 : 1)) || (orden === 'reciente' ? porReciente(a, b) : porNombre(a, b));
+    });
+    // En «Recientes» se separan por tramos (Hoy, Ayer, Esta semana…) para que nada se pierda.
+    var grupoActual = null, cabecera = function (t, n) {
+      return '<div style="grid-column:1/-1;display:flex;align-items:baseline;gap:8px;margin:10px 0 -4px;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;opacity:.75">' +
+        esc(t) + '<span style="font-weight:400;letter-spacing:0;text-transform:none">· ' + n + '</span></div>';
+    };
+    var cuenta = {};
+    if (orden === 'reciente') vis.forEach(function (d) { if (!d.urgencia) { var g = grupoDe(d.ultimaInteraccion); cuenta[g] = (cuenta[g] || 0) + 1; } });
+    $('pipeline-grid').innerHTML = vis.map(function (d) {
+      var pre = '';
+      if (orden === 'reciente' && !d.urgencia) {
+        var g = grupoDe(d.ultimaInteraccion);
+        if (g !== grupoActual) { grupoActual = g; pre = cabecera(g, cuenta[g]); }
+      }
+      return pre + cardHtml(d);
+    }).join('') +
       '<div class="add-card"><button id="add-toggle" type="button">+ Añadir empresa</button>' +
       '<div class="add-form" id="add-form"><input id="new-nombre" placeholder="Nombre de la empresa"><input id="new-zona" placeholder="Zona (ej. Bizkaia)">' +
       '<button class="touch-btn" id="add-confirm" type="button">Guardar empresa</button><span class="save-state err" id="add-err"></span></div></div>';
