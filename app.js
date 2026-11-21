@@ -105,22 +105,28 @@
       docs = d.empresas || [];
       if (d.guion) guion = Object.assign({}, GUION_BASE, d.guion);
       aviso(''); conn('live', 'conectado · actualizado ' + hora());
-      renderFilters(); renderGrid(); if (!guionEdit) renderGuion();
+      renderFilters(); renderGrid(); renderClinicas(); if (!guionEdit) renderGuion();
     }).catch(function (e) { conn('off', 'sin conexión'); aviso('⚠️ ' + e.message); });
   }
   function ocupado() {
     var a = document.activeElement;
-    return Object.keys(saving).length || (a && a.closest && a.closest('#pipeline-grid, #guion-content')) ||
+    return Object.keys(saving).length || (a && a.closest && a.closest('#pipeline-grid, #clinicas-grid, #guion-content')) ||
       document.querySelector('.add-form.open') || guionEdit;
   }
+
+  // Módulo Clínicas (T-044): las clínicas viven en crm.empresas con modulo = 'clinicas'.
+  // El Pipeline enseña el resto; cada lista tiene su pestaña.
+  function esClinica(d) { return d.modulo === 'clinicas'; }
+  function empresas() { return docs.filter(function (d) { return !esClinica(d); }); }
+  function clinicas() { return docs.filter(esClinica); }
   setInterval(function () { if (codigo && !document.hidden && !ocupado()) cargar(true); }, 20000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden && codigo && !ocupado()) cargar(true); });
 
   // ------------------------------------------------------------ pipeline
   function renderStats() {
-    var n = function (f) { return docs.filter(f).length; };
+    var base = empresas(), n = function (f) { return base.filter(f).length; };
     var venc = n(function (d) { return d.urgencia; });
-    var cells = [['Empresas', docs.length, false], ['Vencidos', venc, venc > 0],
+    var cells = [['Empresas', base.length, false], ['Vencidos', venc, venc > 0],
       ['Agendadas', n(function (d) { return d.estado === 'agendada'; }), false],
       ['En conversación', n(function (d) { return d.estado === 'conversacion'; }), false],
       ['Sin tocar', n(function (d) { return !d.estado || d.estado === 'sin_tocar'; }), false]];
@@ -192,7 +198,8 @@
 
   function renderGrid() {
     renderStats();
-    var vis = filtro === 'todas' ? docs : docs.filter(function (d) { return (d.estado || 'sin_tocar') === filtro; });
+    var base = empresas();
+    var vis = filtro === 'todas' ? base : base.filter(function (d) { return (d.estado || 'sin_tocar') === filtro; });
     var porNombre = function (a, b) { return (a.nombre || '').localeCompare(b.nombre || ''); };
     var porReciente = function (a, b) {
       var ta = a.ultimaInteraccion ? Date.parse(a.ultimaInteraccion) : 0, tb = b.ultimaInteraccion ? Date.parse(b.ultimaInteraccion) : 0;
@@ -220,6 +227,13 @@
       '<div class="add-form" id="add-form"><input id="new-nombre" placeholder="Nombre de la empresa"><input id="new-zona" placeholder="Zona (ej. Bizkaia)">' +
       '<button class="touch-btn" id="add-confirm" type="button">Guardar empresa</button><span class="save-state err" id="add-err"></span></div></div>';
 
+    enlazar($('pipeline-grid'), vis);
+    $('add-toggle').onclick = function () { $('add-form').classList.toggle('open'); };
+    $('add-confirm').onclick = crearEmpresa;
+  }
+
+  /* Conecta los campos y botones de las tarjetas de una rejilla (Pipeline o Clínicas). */
+  function enlazar(grid, vis) {
     vis.forEach(function (d) {
       Object.keys(CAMPOS).forEach(function (f) {
         var node = $(f + '-' + d.id);
@@ -227,28 +241,29 @@
       });
       var est = $('estado-' + d.id);
       est.addEventListener('change', function () { guardar(d.id, { estado: est.value }); });
+      var anu = $('anuncios-' + d.id);   // solo existe en las tarjetas de clínicas
+      if (anu) anu.addEventListener('change', function () { guardar(d.id, { anuncios: anu.value }); });
     });
-    $('pipeline-grid').querySelectorAll('[data-touch]').forEach(function (b) {
+    grid.querySelectorAll('[data-touch]').forEach(function (b) {
       b.onclick = function () {
         var d = docs.filter(function (x) { return x.id === b.getAttribute('data-touch'); })[0];
         guardar(d.id, { toques: (Number(d.toques) || 0) + 1, ultimoToque: new Date().toISOString().slice(0, 10) });
       };
     });
-    $('pipeline-grid').querySelectorAll('[data-save]').forEach(function (b) {
+    grid.querySelectorAll('[data-save]').forEach(function (b) {
       b.onclick = function () {
         var id = b.getAttribute('data-save'), p = { estado: $('estado-' + id).value };
         Object.keys(CAMPOS).forEach(function (f) { p[CAMPOS[f]] = $(f + '-' + id).value; });
+        if ($('anuncios-' + id)) p.anuncios = $('anuncios-' + id).value;
         guardar(id, p);
       };
     });
-    $('pipeline-grid').querySelectorAll('[data-propuesta]').forEach(function (b) {
+    grid.querySelectorAll('[data-propuesta]').forEach(function (b) {
       b.onclick = function () { pedirPropuesta(b.getAttribute('data-propuesta'), b); };
     });
-    $('pipeline-grid').querySelectorAll('details.ficha').forEach(function (det) {
+    grid.querySelectorAll('details.ficha').forEach(function (det) {
       det.addEventListener('toggle', function () { abiertas[det.getAttribute('data-ficha')] = det.open; });
     });
-    $('add-toggle').onclick = function () { $('add-form').classList.toggle('open'); };
-    $('add-confirm').onclick = crearEmpresa;
   }
 
   function pintarEstado(id) {
@@ -262,7 +277,7 @@
     var st = STATUS[d.estado] || STATUS.sin_tocar, pill = card.querySelector('.pill');
     pill.style.color = st.fg; pill.style.background = st.bg; pill.textContent = st.emoji + ' ' + st.label;
     card.querySelector('.touch-meta').textContent = (d.toques ? d.toques + ' toques' : 'sin toques') + (d.ultimoToque ? ' · último ' + d.ultimoToque : '');
-    pintarEstado(d.id); renderStats();
+    pintarEstado(d.id); renderStats(); renderCliStats();
   }
 
   /* Pedir propuesta: Elkin recibe el correo ya escrito y lo aprueba. Aqui NO se
@@ -309,8 +324,8 @@
       saveState[id] = { cls: 'ok', text: '✓ guardado ' + hora() };
       aviso('');
       // Si está escribiendo en cualquier ficha, no se redibuja nada: solo se actualiza esta tarjeta.
-      var a = document.activeElement, escribiendo = a && a.closest && a.closest('#pipeline-grid') && /INPUT|TEXTAREA|SELECT/.test(a.tagName);
-      if (escribiendo) actualizarTarjeta(nuevo); else renderGrid();
+      var a = document.activeElement, escribiendo = a && a.closest && a.closest('#pipeline-grid, #clinicas-grid') && /INPUT|TEXTAREA|SELECT/.test(a.tagName);
+      if (escribiendo) actualizarTarjeta(nuevo); else if (esClinica(nuevo)) renderClinicas(); else renderGrid();
     }).catch(function (e) {
       saveState[id] = { cls: 'err', text: '✗ no se guardó — pulsa Guardar' };
       pintarEstado(id); aviso('⚠️ ' + e.message);
@@ -325,6 +340,141 @@
     rpc('crm_crear', { p_codigo: codigo, p_id: id, p_data: { nombre: nombre, zona: zona, estado: 'sin_tocar' } })
       .then(function (nuevo) { docs.push(nuevo); saveState[id] = { cls: 'ok', text: '✓ empresa creada' }; renderGrid(); })
       .catch(function (e) { $('add-err').textContent = e.message; $('add-confirm').disabled = false; });
+  }
+
+  // ------------------------------------------------------------ clínicas (T-044)
+  // Textos del módulo (intro, metas, mensajes) en clinicas.js. Los datos de cada
+  // clínica solo viven en Supabase: este repo es público.
+  var CLI = window.CLINICAS || {};
+  var cliFiltro = 'todas';
+  var ANUNCIOS = [['sin comprobar', '❔ Anuncios: sin comprobar'], ['si', '📣 Tiene anuncios'], ['no', '— Sin anuncios']];
+
+  function enlace(u) {
+    return /^https?:\/\//i.test(u || '') ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' : esc(u);
+  }
+  function senal(txt, v) {
+    var t = v === 'si' ? 'sí' : v === 'no' ? 'no' : '?';
+    return '<span class="senal' + (v === 'si' ? ' si' : '') + '">' + txt + ': ' + t + '</span>';
+  }
+  function conversaciones() {
+    return clinicas().filter(function (d) { return d.estado === 'conversacion' || d.estado === 'agendada'; }).length;
+  }
+
+  function renderCliStats() {
+    if (!$('cli-stats')) return;
+    var cs = clinicas(), n = function (f) { return cs.filter(f).length; };
+    var cells = [['Clínicas', cs.length], ['Encaje alto', n(function (d) { return String(d.encaje) === '1'; })],
+      ['Sin tocar', n(function (d) { return !d.estado || d.estado === 'sin_tocar'; })], ['Tocadas', n(function (d) { return d.estado === 'tocada'; })],
+      ['En conversación', n(function (d) { return d.estado === 'conversacion'; })], ['Agendadas', n(function (d) { return d.estado === 'agendada'; })]];
+    $('cli-stats').innerHTML = cells.map(function (c) {
+      return '<div class="stat"><div class="n mono">' + c[1] + '</div><div class="l">' + c[0] + '</div></div>';
+    }).join('');
+    var c = conversaciones();
+    $('cli-meta').innerHTML = (CLI.metas || []).map(function (m) {
+      return '<span class="meta-chip' + (c >= m.n ? ' ok' : '') + '">' + esc(m.texto) + ': ' + c + ' / ' + m.n + '</span>';
+    }).join('');
+  }
+
+  function fichaClinica(d) {
+    var r = [], fila = function (t, v) { if (v) r.push('<div class="ficha-row"><b>' + t + '</b>' + v + '</div>'); };
+    fila('Dirección', esc([d.direccion, d.barrio].filter(Boolean).join(' · ')));
+    fila('Teléfono de la clínica', esc(d.telefono || ''));
+    if (d.web) fila('Web', enlace(d.web));
+    if (d.instagram) fila('Instagram', enlace(d.instagram));
+    fila('Equipo', esc([d.profesionales ? d.profesionales + ' profesionales' : '', d.gabinetes ? d.gabinetes + ' gabinetes' : ''].filter(Boolean).join(' · ')));
+    fila('Reseñas', esc(d.resenas || ''));
+    if (d.resenasTelefono && d.resenasTelefono !== 'sin comprobar') fila('Una reseña sobre el teléfono o las citas', esc(d.resenasTelefono));
+    fila('Por qué encaja', esc(d.porQue || ''));
+    if (d.fuentes && d.fuentes.length) fila('Fuentes' + (d.consultado ? ' (consultadas el ' + esc(d.consultado) + ')' : ''), d.fuentes.map(enlace).join('<br>'));
+    if (!r.length) return '';
+    return '<details class="ficha" data-ficha="' + d.id + '"' + (abiertas[d.id] ? ' open' : '') + '><summary>📋 Ficha — léela antes de contactar</summary><div class="ficha-body">' + r.join('') + '</div></details>';
+  }
+
+  function cardClinica(d) {
+    var st = STATUS[d.estado] || STATUS.sin_tocar, ss = saveState[d.id], e = String(d.encaje || '');
+    var opts = Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (d.estado === k ? ' selected' : '') + '>' + STATUS[k].emoji + ' ' + STATUS[k].label + '</option>'; }).join('');
+    var anu = d.anuncios || 'sin comprobar';
+    var anuOpts = ANUNCIOS.map(function (o) { return '<option value="' + o[0] + '"' + (anu === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+    var inp = function (f, ph) { return '<input class="f" id="' + f + '-' + d.id + '" placeholder="' + ph + '" value="' + esc(d[CAMPOS[f]] || '') + '">'; };
+    var quien = d.actualizadoPor && d.actualizadoPor !== 'migración' && d.actualizadoPor !== 'Elkin (vía Claude)' ? 'editado por ' + esc(d.actualizadoPor) + ' · ' + hora(d.actualizado) : '';
+    return '<div class="card" data-id="' + d.id + '">' +
+      '<div class="card-top"><div><h3>' + (esc(d.nombre) || '(sin nombre)') +
+      (e ? '<span class="encaje e' + esc(e) + '">encaje ' + esc(e) + '</span>' : '') + '</h3><div class="zona">' + (esc(d.zona) || 'zona sin confirmar') + '</div></div>' +
+      '<span class="pill" style="color:' + st.fg + ';background:' + st.bg + '">' + st.emoji + ' ' + st.label + '</span></div>' +
+      '<div class="senales">' + senal('Reserva online', d.reservaOnline) + senal('WhatsApp', d.whatsapp) + senal('Instagram', d.instagram ? 'si' : 'no') + '</div>' +
+      fichaClinica(d) +
+      '<div class="field-row"><label class="f" for="decisor-' + d.id + '">Dueña o dueño</label><label class="f" for="contacto-' + d.id + '">Contacto</label></div>' +
+      '<div class="field-row">' + inp('decisor', 'pendiente') + inp('contacto', 'tel / email') + '</div>' +
+      '<label class="f" for="correo-' + d.id + '">Correo de la dueña o de la clínica</label>' + inp('correo', 'nombre@clinica.com') +
+      '<div class="field-row"><label class="f" for="estado-' + d.id + '">Estado</label><label class="f" for="fecha-' + d.id + '">Próxima fecha</label></div>' +
+      '<div class="field-row"><select class="f" id="estado-' + d.id + '">' + opts + '</select>' + inp('fecha', 'ej. vie 28 nov') + '</div>' +
+      '<label class="f" for="anuncios-' + d.id + '">Anuncios (Biblioteca de anuncios de Meta)</label><select class="f" id="anuncios-' + d.id + '">' + anuOpts + '</select>' +
+      '<label class="f" for="proximo-' + d.id + '">Próximo paso</label>' + inp('proximo', 'ej. visita el viernes, reenviar correo') +
+      '<label class="f" for="notas-' + d.id + '">Notas (qué dijo de su recepción, su agenda o sus pacientes)</label>' +
+      '<textarea class="f" id="notas-' + d.id + '" placeholder="con quién hablaste, qué te contó…">' + esc(d.notas || '') + '</textarea>' +
+      '<div class="card-foot"><button class="touch-btn" data-touch="' + d.id + '">+1 toque hoy</button>' +
+      '<button class="save-btn" data-save="' + d.id + '">💾 Guardar</button></div>' +
+      '<div class="card-meta"><span class="save-state ' + (ss ? ss.cls : '') + '">' + (ss ? esc(ss.text) : '') + '</span>' +
+      '<span class="touch-meta">' + (d.toques ? d.toques + ' toques' : 'sin toques') + (d.ultimoToque ? ' · último ' + esc(d.ultimoToque) : '') + '</span></div>' +
+      (d.ultimaInteraccion ? '<div class="who-meta">🕒 última interacción: ' + esc(cuando(d.ultimaInteraccion)) + '</div>' : '') +
+      (quien ? '<div class="who-meta">' + quien + '</div>' : '') +
+      '</div>';
+  }
+
+  function renderCliCabecera() {
+    $('cli-intro').innerHTML = CLI.intro || '';   // texto propio de clinicas.js, no datos de usuario
+    var msgs = CLI.mensajes || [];
+    $('cli-mensajes').innerHTML = msgs.length ? '<details class="msg"><summary>✉️ Mensajes de primer contacto (de usted): copia y personaliza</summary><div class="msg-body">' +
+      msgs.map(function (m, i) {
+        return '<details class="msg"><summary>' + esc(m.titulo) + ' <span class="copy-btn" data-climsg="' + i + '">copiar</span></summary><div class="msg-body"><p style="white-space:pre-line">' + esc(m.texto) + '</p></div></details>';
+      }).join('') + '</div></details>' : '';
+    $('cli-mensajes').querySelectorAll('[data-climsg]').forEach(function (b) {
+      b.onclick = function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var t = msgs[Number(b.getAttribute('data-climsg'))];
+        navigator.clipboard.writeText(t.texto || '').then(function () {
+          b.textContent = '✓ copiado'; b.classList.add('done');
+          setTimeout(function () { b.textContent = 'copiar'; b.classList.remove('done'); }, 1500);
+        });
+      };
+    });
+  }
+
+  function renderCliFiltros() {
+    var opts = [['todas', 'Todas']].concat(Object.keys(STATUS).map(function (k) { return [k, STATUS[k].emoji + ' ' + STATUS[k].label]; }));
+    $('cli-filters').innerHTML = opts.map(function (o) {
+      return '<button class="chip ' + (cliFiltro === o[0] ? 'on' : '') + '" data-clifiltro="' + o[0] + '">' + o[1] + '</button>';
+    }).join('');
+    $('cli-filters').querySelectorAll('[data-clifiltro]').forEach(function (c) {
+      c.onclick = function () { cliFiltro = c.getAttribute('data-clifiltro'); renderClinicas(); };
+    });
+  }
+
+  function renderClinicas() {
+    if (!$('clinicas-grid')) return;
+    renderCliFiltros(); renderCliStats();
+    var base = clinicas();
+    var vis = cliFiltro === 'todas' ? base : base.filter(function (d) { return (d.estado || 'sin_tocar') === cliFiltro; });
+    vis = vis.slice().sort(function (a, b) {   // encaje alto primero; dentro, por nombre
+      return ((Number(a.encaje) || 9) - (Number(b.encaje) || 9)) || (a.nombre || '').localeCompare(b.nombre || '');
+    });
+    $('clinicas-grid').innerHTML = vis.map(cardClinica).join('') +
+      '<div class="add-card"><button id="cli-add-toggle" type="button">+ Añadir clínica</button>' +
+      '<div class="add-form" id="cli-add-form"><input id="cli-new-nombre" placeholder="Nombre de la clínica"><input id="cli-new-zona" placeholder="Zona (ej. Bilbao · Indautxu)">' +
+      '<button class="touch-btn" id="cli-add-confirm" type="button">Guardar clínica</button><span class="save-state err" id="cli-add-err"></span></div></div>';
+    enlazar($('clinicas-grid'), vis);
+    $('cli-add-toggle').onclick = function () { $('cli-add-form').classList.toggle('open'); };
+    $('cli-add-confirm').onclick = crearClinica;
+  }
+
+  function crearClinica() {
+    var nombre = $('cli-new-nombre').value.trim(), zona = $('cli-new-zona').value.trim();
+    if (!nombre) return;
+    var id = 'cli-' + (slugify(nombre) || Date.now());
+    $('cli-add-confirm').disabled = true;
+    rpc('crm_crear', { p_codigo: codigo, p_id: id, p_data: { nombre: nombre, zona: zona, estado: 'sin_tocar', modulo: 'clinicas', anuncios: 'sin comprobar' } })
+      .then(function (nuevo) { docs.push(nuevo); saveState[id] = { cls: 'ok', text: '✓ clínica creada' }; renderClinicas(); })
+      .catch(function (e) { $('cli-add-err').textContent = e.message; $('cli-add-confirm').disabled = false; });
   }
 
   // ------------------------------------------------------------ guion
@@ -445,7 +595,7 @@
   $('actividad-refresh').onclick = cargarActividad;
 
   // ------------------------------------------------------------ pestañas + salida
-  var TABS = ['pipeline', 'guion', 'actividad'];
+  var TABS = ['pipeline', 'clinicas', 'guion', 'actividad'];
   function showTab(w) {
     TABS.forEach(function (t) {
       $('view-' + t).hidden = t !== w;
@@ -461,7 +611,7 @@
   });
 
   $('today').textContent = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-  renderGuion();
+  renderGuion(); renderCliCabecera();   // la cabecera de Clínicas es fija: se pinta una vez
   var guardado = null;
   try { guardado = localStorage.getItem(LS_KEY); } catch (e) {}
   if (guardado) entrar(guardado); else $('login').hidden = false;

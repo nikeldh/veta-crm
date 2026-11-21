@@ -199,6 +199,18 @@
   .prop-btn{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:6px 10px;border-radius:6px;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);cursor:pointer}
   .prop-btn:disabled{opacity:.55;cursor:default}
   .prop-chip{margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-soft);background:var(--surface-2);border-radius:6px;padding:5px 8px}
+  /* modulo Clinicas */
+  .cli-intro{margin:4px 0 14px;padding:12px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:14px;line-height:1.5}
+  .cli-intro p{margin:0 0 6px} .cli-intro p:last-child{margin:0}
+  .cli-meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .cli-meta .meta-chip{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:5px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink)}
+  .cli-meta .meta-chip.ok{background:var(--good-soft);color:var(--good)}
+  .encaje{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle}
+  .encaje.e1{background:var(--good-soft);color:var(--good)} .encaje.e2{background:var(--warn-soft);color:var(--warn)} .encaje.e3{background:var(--surface-2);color:var(--ink-soft)}
+  .senales{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .senal{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:3px 7px;border-radius:5px;background:var(--surface-2);color:var(--ink-soft)}
+  .senal.si{background:var(--info-soft);color:var(--info)}
+  #cli-mensajes{margin:0 0 14px}
 </style>
 
 <div class="login" id="login" hidden>
@@ -237,6 +249,7 @@
 
   <div class="tabs" role="tablist">
     <button class="tab-btn active" id="tab-btn-pipeline" role="tab" aria-selected="true" aria-controls="view-pipeline">Pipeline</button>
+    <button class="tab-btn" id="tab-btn-clinicas" role="tab" aria-selected="false" aria-controls="view-clinicas">Clínicas</button>
     <button class="tab-btn" id="tab-btn-guion" role="tab" aria-selected="false" aria-controls="view-guion">Guion de llamada</button>
     <button class="tab-btn" id="tab-btn-actividad" role="tab" aria-selected="false" aria-controls="view-actividad" hidden>Actividad</button>
   </div>
@@ -245,6 +258,15 @@
     <div class="stats" id="stats-row"></div>
     <div class="filters" id="filters-row"></div>
     <div class="grid" id="pipeline-grid"></div>
+  </section>
+
+  <section class="view" id="view-clinicas" hidden>
+    <div class="cli-intro" id="cli-intro"></div>
+    <div class="cli-meta" id="cli-meta"></div>
+    <div id="cli-mensajes"></div>
+    <div class="stats" id="cli-stats"></div>
+    <div class="filters" id="cli-filters"></div>
+    <div class="grid" id="clinicas-grid"></div>
   </section>
 
   <section class="view" id="view-guion" hidden>
@@ -271,5 +293,6 @@
 
 <script src="sectores.js"></script>
 <script src="guion.js"></script>
+<script src="clinicas.js"></script>
 <script src="app.js"></script>
 </body></html>

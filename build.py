@@ -80,6 +80,18 @@ EXTRA_CSS = """
   .prop-btn{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:6px 10px;border-radius:6px;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);cursor:pointer}
   .prop-btn:disabled{opacity:.55;cursor:default}
   .prop-chip{margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-soft);background:var(--surface-2);border-radius:6px;padding:5px 8px}
+  /* modulo Clinicas */
+  .cli-intro{margin:4px 0 14px;padding:12px 14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);font-size:14px;line-height:1.5}
+  .cli-intro p{margin:0 0 6px} .cli-intro p:last-child{margin:0}
+  .cli-meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .cli-meta .meta-chip{font-family:"IBM Plex Mono",monospace;font-size:12px;padding:5px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink)}
+  .cli-meta .meta-chip.ok{background:var(--good-soft);color:var(--good)}
+  .encaje{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle}
+  .encaje.e1{background:var(--good-soft);color:var(--good)} .encaje.e2{background:var(--warn-soft);color:var(--warn)} .encaje.e3{background:var(--surface-2);color:var(--ink-soft)}
+  .senales{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .senal{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:3px 7px;border-radius:5px;background:var(--surface-2);color:var(--ink-soft)}
+  .senal.si{background:var(--info-soft);color:var(--info)}
+  #cli-mensajes{margin:0 0 14px}
 """
 # el primer </style> es el del contenedor; el segundo es el del CRM
 i = html.index("</style>", html.index("</style>") + 1)
@@ -95,6 +107,23 @@ sub('</div>\n\n  <div class="tabs"',
 sub('aria-controls="view-guion">Guion de llamada</button>',
     'aria-controls="view-guion">Guion de llamada</button>\n'
     '    <button class="tab-btn" id="tab-btn-actividad" role="tab" aria-selected="false" aria-controls="view-actividad" hidden>Actividad</button>')
+
+# Modulo Clinicas (T-044): pestaña propia, despues de Pipeline. Las clinicas viven
+# en crm.empresas con data.modulo = 'clinicas'; sus nombres NUNCA van en este repo.
+sub('aria-controls="view-pipeline">Pipeline</button>',
+    'aria-controls="view-pipeline">Pipeline</button>\n'
+    '    <button class="tab-btn" id="tab-btn-clinicas" role="tab" aria-selected="false" aria-controls="view-clinicas">Clínicas</button>')
+
+sub('  <section class="view" id="view-guion" hidden>',
+    '  <section class="view" id="view-clinicas" hidden>\n'
+    '    <div class="cli-intro" id="cli-intro"></div>\n'
+    '    <div class="cli-meta" id="cli-meta"></div>\n'
+    '    <div id="cli-mensajes"></div>\n'
+    '    <div class="stats" id="cli-stats"></div>\n'
+    '    <div class="filters" id="cli-filters"></div>\n'
+    '    <div class="grid" id="clinicas-grid"></div>\n'
+    '  </section>\n\n'
+    '  <section class="view" id="view-guion" hidden>')
 
 sub('  <footer>',
     '  <section class="view" id="view-actividad" hidden>\n'
@@ -121,7 +150,8 @@ sub('<div class="wrap">',
     '</div>\n\n<div class="wrap">')
 
 # sectores.js es propio (sección 05 del guion): build.py no lo genera ni lo pisa.
-html += '<script src="sectores.js"></script>\n<script src="guion.js"></script>\n<script src="app.js"></script>\n</body></html>\n'
+# clinicas.js tambien es propio (mensajes de primer contacto del modulo Clinicas).
+html += '<script src="sectores.js"></script>\n<script src="guion.js"></script>\n<script src="clinicas.js"></script>\n<script src="app.js"></script>\n</body></html>\n'
 html = html.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
 
 io.open(os.path.join(BASE, "index.html"), "w", encoding="utf-8").write(html)
