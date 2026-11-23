@@ -3,7 +3,7 @@
 // Los datos de cada clínica viven en Supabase (crm.empresas, modulo = 'clinicas'):
 // este repo es PÚBLICO y aquí nunca va el nombre de una clínica.
 window.CLINICAS = {
-  "intro": "<p><b>Clínicas dentales independientes de Bilbao y Portugalete.</b> Salen del padrón oficial del PADI (junio de 2026): no están todas las clínicas de la zona, solo las que atienden el programa dental infantil. Están <b>sin validar</b>: antes del primer contacto, mira su web y su ficha de Google (WhatsApp, reserva online, Instagram, reseñas) y si tiene anuncios en la <a href=\"https://www.facebook.com/ads/library/\" target=\"_blank\" rel=\"noopener\">Biblioteca de anuncios de Meta</a>, y apúntalo en la tarjeta. El encaje se pone después de esa revisión.</p><p><b>El objetivo es una conversación, no una venta.</b> Primer contacto siempre <b>de usted</b>. Nunca se da precio ni se promete nada: si preguntan, «eso lo ve Elkin en el diagnóstico de su operación, que es gratuito».</p><p>Mientras Elkin no decida D-13, el primer contacto es <b>la visita</b> o <b>LinkedIn</b>; los correos de primer contacto no se envían. Marca <b>En conversación</b> solo cuando la dueña o el dueño te cuenta algo de su recepción, su agenda o sus pacientes.</p>",
+  "intro": "<p><b>Clínicas dentales independientes de Bilbao y Portugalete.</b> Salen del padrón oficial del PADI (junio de 2026): no están todas las clínicas de la zona, solo las que atienden el programa dental infantil. Están <b>sin validar</b>: antes del primer contacto, mira su web y su ficha de Google (WhatsApp, reserva online, Instagram, reseñas) y si tiene anuncios en la <a href=\"https://www.facebook.com/ads/library/\" target=\"_blank\" rel=\"noopener\">Biblioteca de anuncios de Meta</a>, y apúntalo en la tarjeta. El encaje se pone después de esa revisión.</p><p><b>El objetivo es una conversación, no una venta.</b> Primer contacto siempre <b>de usted</b>. Nunca se da precio ni se promete nada: si preguntan, «eso lo ve Elkin en el diagnóstico de su operación, que es gratuito».</p><p>El primer contacto es <b>la visita</b> o <b>LinkedIn</b>. <b>Nada de correo en frío</b> (decisión de Elkin, D-13): el correo solo se usa si la clínica lo pide o te lo da, y apuntas en la tarjeta de dónde salió. Marca <b>En conversación</b> cuando la dueña o el dueño te cuenta algo de su recepción, su agenda o sus pacientes, en persona, por teléfono o respondiendo por correo o LinkedIn, aunque sea en una palabra (D-14).</p>",
   "metas": [
     {
       "n": 5,
@@ -16,27 +16,27 @@ window.CLINICAS = {
   ],
   "mensajes": [
     {
-      "titulo": "OUT-CORREO-A · asunto · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-CORREO-A · asunto · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "Una pregunta sobre el WhatsApp de [Clínica]"
     },
     {
-      "titulo": "OUT-CORREO-A · cuerpo · Elkin · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-CORREO-A · cuerpo · Elkin · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "Buenos días, [Nombre]:\n\n¿Qué encuentra su equipo en el WhatsApp de [Clínica] a primera hora de la mañana?\n\nQuiero entender cómo llevan las clínicas dentales de [barrio] los mensajes que llegan fuera de horario. Soy Elkin Dueñas, de Veta Ops, aquí en Bizkaia. Me formé como ingeniero industrial: miro una clínica como una operación, con colas, tiempos y huecos.\n\nCon que me conteste en una línea, me sirve.\n\nSi quiere ponerle número, esta calculadora le dice cuánto se le escapa al mes con tres datos de su clínica. No le pide correo ni teléfono:\nhttps://veta-ops.com/sectores/clinicas?utm_source=outbound&utm_medium=email&utm_campaign=clinicas-bizkaia#calculadora\n\nSi prefiere que no le escriba más, dígamelo y no insisto.\n\nUn saludo,\nElkin Dueñas · Veta Ops\ndireccion@veta-ops.com · veta-ops.com"
     },
     {
-      "titulo": "OUT-CORREO-B · asunto · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-CORREO-B · asunto · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "Una pregunta sobre el teléfono de [Clínica]"
     },
     {
-      "titulo": "OUT-CORREO-B · cuerpo · Elkin · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-CORREO-B · cuerpo · Elkin · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "Buenos días, [Nombre]:\n\nCuando su recepción está atendiendo a alguien en el mostrador y suena el teléfono, ¿qué pasa con esa llamada?\n\nQuiero entender cómo llevan las clínicas dentales de [barrio] las llamadas que entran en hora pico. Soy Elkin Dueñas, de Veta Ops, aquí en Bizkaia. Me formé como ingeniero industrial: miro una clínica como una operación, con colas, tiempos y huecos.\n\nCon que me conteste en una línea, me sirve.\n\nSi quiere ponerle número, esta calculadora le dice cuánto se le escapa al mes con tres datos de su clínica. No le pide correo ni teléfono:\nhttps://veta-ops.com/sectores/clinicas?utm_source=outbound&utm_medium=email&utm_campaign=clinicas-bizkaia#calculadora\n\nSi prefiere que no le escriba más, dígamelo y no insisto.\n\nUn saludo,\nElkin Dueñas · Veta Ops\ndireccion@veta-ops.com · veta-ops.com"
     },
     {
-      "titulo": "OUT-CORREO-C · asunto · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-CORREO-C · asunto · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "Una pregunta sobre las consultas de [Clínica]"
     },
     {
-      "titulo": "OUT-CORREO-C · cuerpo · Elkin · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-CORREO-C · cuerpo · Elkin · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "Buenos días, [Nombre]:\n\nCuando alguien escribe a [Clínica] desde un anuncio, ¿quién le contesta y en cuánto tiempo?\n\nQuiero entender qué pasa en las clínicas dentales de [barrio] con las consultas que llegan de los anuncios. Soy Elkin Dueñas, de Veta Ops, aquí en Bizkaia. Me formé como ingeniero industrial: miro una clínica como una operación, con colas, tiempos y huecos.\n\nCon que me conteste en una línea, me sirve.\n\nSi quiere ponerle número, esta calculadora le dice cuánto se le escapa al mes con tres datos de su clínica. No le pide correo ni teléfono:\nhttps://veta-ops.com/sectores/clinicas?utm_source=outbound&utm_medium=email&utm_campaign=clinicas-bizkaia#calculadora\n\nSi prefiere que no le escriba más, dígamelo y no insisto.\n\nUn saludo,\nElkin Dueñas · Veta Ops\ndireccion@veta-ops.com · veta-ops.com"
     },
     {
@@ -104,7 +104,7 @@ window.CLINICAS = {
       "texto": "Para [Nombre], de [Clínica]\n\nPasé por la clínica [día] y no quise interrumpir.\n\nLe dejo una pregunta: a los pacientes a los que les toca revisión, ¿los llama alguien de [Clínica] o vuelven cuando se acuerdan?\n\nQuiero entender cómo llevan las clínicas dentales de [barrio] los avisos de revisión. Con que me escriba una línea al correo o al teléfono de abajo, me sirve.\n\nElkin Dueñas · Veta Ops\n[teléfono] · direccion@veta-ops.com"
     },
     {
-      "titulo": "OUT-SEGUIMIENTO-A · cuerpo · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-SEGUIMIENTO-A · cuerpo · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "[Nombre], otra pregunta, y esta se contesta con una palabra: cuando alguien anula a última hora en [Clínica], ¿ese hueco se llena o se queda vacío?\n\nSi no le interesa, dígamelo y no le escribo más.\n\nUn saludo,\nElkin"
     },
     {
@@ -116,11 +116,11 @@ window.CLINICAS = {
       "texto": "[Nombre], [día] le dejé una nota en recepción. Otra pregunta, y esta se contesta con una palabra: cuando alguien anula a última hora en [Clínica], ¿ese hueco se llena o se queda vacío?\n\nSi no le interesa, dígamelo y no le escribo más.\n\nUn saludo,\nElkin Dueñas · Veta Ops\ndireccion@veta-ops.com · veta-ops.com"
     },
     {
-      "titulo": "OUT-SEGUIMIENTO-B · cuerpo · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-SEGUIMIENTO-B · cuerpo · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "[Nombre], otra pregunta, y esta se contesta rápido: a los pacientes a los que les toca revisión, ¿los llama alguien de [Clínica] o vuelven cuando se acuerdan?\n\nSi no le interesa, dígamelo y no le escribo más.\n\nUn saludo,\nElkin"
     },
     {
-      "titulo": "OUT-SEGUIMIENTO-C · cuerpo · pendiente de D-13 (no enviar todavía)",
+      "titulo": "OUT-SEGUIMIENTO-C · cuerpo · solo si la clínica da o pide su correo (D-13: nada de correo en frío)",
       "texto": "[Nombre], otra pregunta, y esta se contesta con una palabra: cuando su recepción está atendiendo en el mostrador y suena el teléfono, ¿esa llamada se contesta o se pierde?\n\nSi no le interesa, dígamelo y no le escribo más.\n\nUn saludo,\nElkin"
     }
   ]
