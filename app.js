@@ -346,8 +346,129 @@
   // Textos del módulo (intro, metas, mensajes) en clinicas.js. Los datos de cada
   // clínica solo viven en Supabase: este repo es público.
   var CLI = window.CLINICAS || {};
-  var cliFiltro = 'todas';
   var ANUNCIOS = [['sin comprobar', '❔ Anuncios: sin comprobar'], ['si', '📣 Tiene anuncios'], ['no', '— Sin anuncios']];
+
+  // Filtros de Clínicas (24-nov-2026): lugar, estado, fechas, toques, encaje, anuncios y
+  // señales. Se recuerdan en ESTE navegador (localStorage), nunca en la base: son una
+  // comodidad de quien mira, no un dato de la clínica. Si el navegador no deja guardar, se
+  // usa igual y vuelve a "todas" al recargar.
+  var CLI_KEY = 'vetaCrmCliFiltros';
+  var CLI_VACIO = { estado: 'todas', texto: '', municipio: '', cp: '', interaccion: '', proxima: '',
+    toques: '', encaje: '', anuncios: '', senales: [], orden: 'encaje' };
+  var cf = Object.assign({}, CLI_VACIO);
+  try {
+    var cfGuardado = JSON.parse(localStorage.getItem(CLI_KEY) || 'null');
+    if (cfGuardado && typeof cfGuardado === 'object') cf = Object.assign({}, CLI_VACIO, cfGuardado);
+  } catch (e) {}
+  if (!Array.isArray(cf.senales)) cf.senales = [];
+  function guardarCf() { try { localStorage.setItem(CLI_KEY, JSON.stringify(cf)); } catch (e) {} }
+
+  function norm(s) { return (s == null ? '' : String(s)).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  // "Bilbao · CP 48009" → municipio "Bilbao", CP "48009". `municipio` manda si existe.
+  function municipioDe(d) { return (d.municipio || String(d.zona || '').split('·')[0] || '').trim() || 'Sin municipio'; }
+  function cpDe(d) {
+    var m = String(d.zona || '').match(/\b(\d{5})\b/) || String(d.direccion || '').match(/\b(\d{5})\b/);
+    return m ? m[1] : '';
+  }
+  // La próxima fecha es texto libre ("vie 28 nov", "28/11", "2026-11-28"). Se entiende lo que
+  // se puede; lo que no, cuenta como "tiene fecha" pero no entra en vencidas/hoy/semana.
+  var MESES = { ene: 0, feb: 1, mar: 2, abr: 3, may: 4, jun: 5, jul: 6, ago: 7, sep: 8, set: 8, oct: 9, nov: 10, dic: 11 };
+  function fechaDe(txt) {
+    var t = norm(txt).trim(), hoy = new Date(), m, d = null, conAnio = false;
+    hoy.setHours(0, 0, 0, 0);
+    if (!t) return null;
+    if ((m = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})/))) { d = new Date(+m[1], +m[2] - 1, +m[3]); conAnio = true; }
+    else if ((m = t.match(/\b(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{2,4}))?\b/))) {
+      conAnio = !!m[3];
+      d = new Date(m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : hoy.getFullYear(), +m[2] - 1, +m[1]);
+    }
+    else if ((m = t.match(/\b(\d{1,2})\s*(?:de\s+)?(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)/))) d = new Date(hoy.getFullYear(), MESES[m[2]], +m[1]);
+    if (!d || isNaN(d.getTime())) return null;
+    // Sin año: "3 ene" escrito en diciembre es del año que viene, no de hace once meses.
+    if (!conAnio && d < hoy && (hoy - d) / 86400000 > 120) d.setFullYear(d.getFullYear() + 1);
+    return d;
+  }
+  function diasHasta(d) { var hoy = new Date(); hoy.setHours(0, 0, 0, 0); return Math.round((d - hoy) / 86400000); }
+  function ultimaDe(d) { return d.ultimaInteraccion || d.ultimoToque || ''; }
+
+  var SENALES = [
+    ['wa', '💬 WhatsApp', function (d) { return d.whatsapp === 'si'; }],
+    ['reserva', '📅 Reserva online', function (d) { return d.reservaOnline === 'si'; }],
+    ['ig', '📷 Instagram', function (d) { return !!d.instagram; }],
+    ['web', '🌐 Web', function (d) { return !!d.web; }],
+    ['decisor', '👤 Con dueña/o', function (d) { return !!String(d.decisor || '').trim(); }],
+    ['correo', '✉️ Con correo', function (d) { return !!String(d.correo || '').trim(); }]
+  ];
+  var FILTROS_SELECT = {
+    interaccion: { titulo: 'Última interacción', opts: [['', 'Cualquiera'], ['hoy', 'Hoy'], ['7', 'Últimos 7 días'], ['30', 'Últimos 30 días'],
+      ['mas7', 'Hace más de 7 días'], ['mas30', 'Hace más de 30 días'], ['nunca', 'Nunca']] },
+    proxima: { titulo: 'Próxima fecha', opts: [['', 'Cualquiera'], ['vencida', '⚠️ Vencida'], ['hoy', 'Hoy'], ['semana', 'Próximos 7 días'],
+      ['con', 'Con fecha'], ['sin', 'Sin fecha']] },
+    toques: { titulo: 'Toques', opts: [['', 'Cualquiera'], ['0', 'Sin toques'], ['1', '1 toque'], ['2', '2 toques'], ['3', '3 o más']] },
+    encaje: { titulo: 'Encaje', opts: [['', 'Cualquiera'], ['1', 'Encaje 1 (alto)'], ['2', 'Encaje 2'], ['3', 'Encaje 3'], ['sin', 'Sin valorar']] },
+    anuncios: { titulo: 'Anuncios', opts: [['', 'Cualquiera'], ['si', '📣 Tiene anuncios'], ['no', '— Sin anuncios'], ['sin comprobar', '❔ Sin comprobar']] },
+    orden: { titulo: 'Ordenar por', opts: [['encaje', 'Encaje (alto primero)'], ['proxima', 'Próxima fecha'], ['reciente', 'Tocadas hace poco'],
+      ['olvidadas', 'Más tiempo sin tocar'], ['toques', 'Más toques'], ['lugar', 'Lugar (municipio y CP)'], ['nombre', 'Nombre A-Z']] }
+  };
+
+  /* ¿Pasa `d` todos los filtros? `sin` permite saltarse uno (para contar los chips de estado). */
+  function pasaCli(d, sin) {
+    if (sin !== 'estado' && cf.estado !== 'todas' && (d.estado || 'sin_tocar') !== cf.estado) return false;
+    if (cf.texto) {
+      var hay = norm([d.nombre, d.zona, d.direccion, d.barrio, d.municipio, d.decisor, d.contacto, d.correo, d.telefono,
+        d.notas, d.proximoPaso, d.razonSocial].join(' '));
+      if (norm(cf.texto).split(/\s+/).filter(Boolean).some(function (p) { return hay.indexOf(p) < 0; })) return false;
+    }
+    if (cf.municipio && municipioDe(d) !== cf.municipio) return false;
+    if (cf.cp && cpDe(d) !== cf.cp) return false;
+    if (cf.interaccion) {
+      var u = ultimaDe(d), n = u ? diasAtras(u) : null;
+      var okI = { hoy: n === 0, '7': n !== null && n < 7, '30': n !== null && n < 31, mas7: n !== null && n >= 7,
+        mas30: n !== null && n >= 31, nunca: n === null }[cf.interaccion];
+      if (!okI) return false;
+    }
+    if (cf.proxima) {
+      var txt = String(d.fecha || '').trim(), f = fechaDe(txt), dh = f ? diasHasta(f) : null;
+      var okP = { vencida: dh !== null && dh < 0, hoy: dh === 0, semana: dh !== null && dh >= 0 && dh <= 7,
+        con: !!txt, sin: !txt }[cf.proxima];
+      if (!okP) return false;
+    }
+    if (cf.toques) {
+      var t = Number(d.toques) || 0;
+      if (cf.toques === '3' ? t < 3 : t !== Number(cf.toques)) return false;
+    }
+    if (cf.encaje && (cf.encaje === 'sin' ? !!String(d.encaje || '') : String(d.encaje || '') !== cf.encaje)) return false;
+    if (cf.anuncios && (d.anuncios || 'sin comprobar') !== cf.anuncios) return false;
+    for (var i = 0; i < SENALES.length; i++) if (cf.senales.indexOf(SENALES[i][0]) >= 0 && !SENALES[i][2](d)) return false;
+    return true;
+  }
+  function filtrosActivos() {
+    var n = 0;
+    ['texto', 'municipio', 'cp', 'interaccion', 'proxima', 'toques', 'encaje', 'anuncios'].forEach(function (k) { if (cf[k]) n++; });
+    if (cf.estado !== 'todas') n++;
+    return n + cf.senales.length;
+  }
+  function ordenarCli(vis) {
+    var porNombre = function (a, b) { return (a.nombre || '').localeCompare(b.nombre || ''); };
+    var ts = function (d) { var u = ultimaDe(d); return u ? new Date(u).getTime() : null; };
+    var cmp = {
+      encaje: function (a, b) { return ((Number(a.encaje) || 9) - (Number(b.encaje) || 9)) || porNombre(a, b); },
+      // Las que tienen fecha, de la más cercana (o más vencida) a la más lejana; luego las que
+      // tienen una fecha que no se entiende; las que no tienen fecha, al final.
+      proxima: function (a, b) {
+        var fa = fechaDe(a.fecha), fb = fechaDe(b.fecha);
+        var ra = fa ? 0 : (String(a.fecha || '').trim() ? 1 : 2), rb = fb ? 0 : (String(b.fecha || '').trim() ? 1 : 2);
+        return (ra - rb) || (fa && fb ? fa - fb : 0) || porNombre(a, b);
+      },
+      reciente: function (a, b) { var x = ts(a), y = ts(b); return (x === null) - (y === null) || (y || 0) - (x || 0) || porNombre(a, b); },
+      // Para el seguimiento: primero las tocadas hace más tiempo; las nunca tocadas, al final.
+      olvidadas: function (a, b) { var x = ts(a), y = ts(b); return (x === null) - (y === null) || (x || 0) - (y || 0) || porNombre(a, b); },
+      toques: function (a, b) { return (Number(b.toques) || 0) - (Number(a.toques) || 0) || porNombre(a, b); },
+      lugar: function (a, b) { return municipioDe(a).localeCompare(municipioDe(b)) || cpDe(a).localeCompare(cpDe(b)) || porNombre(a, b); },
+      nombre: porNombre
+    }[cf.orden] || porNombre;
+    return vis.slice().sort(cmp);
+  }
 
   function enlace(u) {
     return /^https?:\/\//i.test(u || '') ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' : esc(u);
@@ -390,6 +511,17 @@
     return '<details class="ficha" data-ficha="' + d.id + '"' + (abiertas[d.id] ? ' open' : '') + '><summary>📋 Ficha — léela antes de contactar</summary><div class="ficha-body">' + r.join('') + '</div></details>';
   }
 
+  // La próxima fecha, a la vista en la tarjeta: en rojo si ya pasó, en ámbar si es hoy.
+  function proximaHtml(d) {
+    var txt = String(d.fecha || '').trim();
+    if (!txt) return '';
+    var f = fechaDe(txt), dh = f ? diasHasta(f) : null;
+    var cls = dh === null ? 'futura' : dh < 0 ? 'vencida' : dh === 0 ? 'hoy' : 'futura';
+    var extra = dh === null ? '' : dh < 0 ? ' · vencida hace ' + (-dh) + (dh === -1 ? ' día' : ' días')
+      : dh === 0 ? ' · hoy' : dh === 1 ? ' · mañana' : ' · en ' + dh + ' días';
+    return '<span class="cli-proxima ' + cls + '">📅 ' + esc(txt) + extra + '</span>';
+  }
+
   function cardClinica(d) {
     var st = STATUS[d.estado] || STATUS.sin_tocar, ss = saveState[d.id], e = String(d.encaje || '');
     var opts = Object.keys(STATUS).map(function (k) { return '<option value="' + k + '"' + (d.estado === k ? ' selected' : '') + '>' + STATUS[k].emoji + ' ' + STATUS[k].label + '</option>'; }).join('');
@@ -402,6 +534,7 @@
       (e ? '<span class="encaje e' + esc(e) + '">encaje ' + esc(e) + '</span>' : '') + '</h3><div class="zona">' + (esc(d.zona) || 'zona sin confirmar') + '</div></div>' +
       '<span class="pill" style="color:' + st.fg + ';background:' + st.bg + '">' + st.emoji + ' ' + st.label + '</span></div>' +
       '<div class="senales">' + senal('Reserva online', d.reservaOnline) + senal('WhatsApp', d.whatsapp) + senal('Instagram', d.instagram ? 'si' : 'no') + '</div>' +
+      proximaHtml(d) +
       fichaClinica(d) +
       '<div class="field-row"><label class="f" for="decisor-' + d.id + '">Dueña o dueño</label><label class="f" for="contacto-' + d.id + '">Contacto</label></div>' +
       '<div class="field-row">' + inp('decisor', 'pendiente') + inp('contacto', 'tel / email') + '</div>' +
@@ -440,25 +573,110 @@
     });
   }
 
+  // Chips de estado con su recuento, contado con TODOS los demás filtros aplicados: así se ve
+  // cuántas quedan en cada estado dentro de lo que se está mirando.
   function renderCliFiltros() {
+    var base = clinicas().filter(function (d) { return pasaCli(d, 'estado'); });
+    var cuenta = function (k) { return k === 'todas' ? base.length : base.filter(function (d) { return (d.estado || 'sin_tocar') === k; }).length; };
     var opts = [['todas', 'Todas']].concat(Object.keys(STATUS).map(function (k) { return [k, STATUS[k].emoji + ' ' + STATUS[k].label]; }));
     $('cli-filters').innerHTML = opts.map(function (o) {
-      return '<button class="chip ' + (cliFiltro === o[0] ? 'on' : '') + '" data-clifiltro="' + o[0] + '">' + o[1] + '</button>';
+      return '<button class="chip ' + (cf.estado === o[0] ? 'on' : '') + '" data-clifiltro="' + o[0] + '">' + o[1] + ' · ' + cuenta(o[0]) + '</button>';
     }).join('');
     $('cli-filters').querySelectorAll('[data-clifiltro]').forEach(function (c) {
-      c.onclick = function () { cliFiltro = c.getAttribute('data-clifiltro'); renderClinicas(); };
+      c.onclick = function () { cf.estado = c.getAttribute('data-clifiltro'); guardarCf(); renderClinicas(); };
     });
+  }
+
+  /* El panel se construye UNA vez. El refresco de cada 20 s solo rehace la rejilla, los chips
+   * y las opciones de lugar: si se reconstruyera el panel, el buscador perdería el foco y lo
+   * que Janice está escribiendo. */
+  var cliPanelHecho = false, cliBuscarT = null;
+  function selectHtml(id, titulo, opts, valor) {
+    return '<label class="f" for="' + id + '">' + titulo + '<select class="f" id="' + id + '">' +
+      opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (valor === o[0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') +
+      '</select></label>';
+  }
+  function construirCliPanel() {
+    var cuerpo = $('cli-panel-body');
+    if (!cuerpo || cliPanelHecho) return;
+    cliPanelHecho = true;
+    cuerpo.innerHTML =
+      '<label class="f ancho" for="cf-texto">Buscar<input class="f" type="search" id="cf-texto" placeholder="nombre, calle, dueña, teléfono, notas…" value="' + esc(cf.texto) + '"></label>' +
+      selectHtml('cf-municipio', 'Municipio', [['', 'Todos']], cf.municipio) +
+      selectHtml('cf-cp', 'Código postal', [['', 'Todos']], cf.cp) +
+      ['interaccion', 'proxima', 'toques', 'encaje', 'anuncios', 'orden'].map(function (k) {
+        return selectHtml('cf-' + k, FILTROS_SELECT[k].titulo, FILTROS_SELECT[k].opts, cf[k]);
+      }).join('') +
+      '<div class="ancho"><span class="cli-lbl">Señales (deben cumplirse todas las marcadas)</span><div class="cli-senales">' +
+      SENALES.map(function (s) {
+        return '<button type="button" class="chip" data-senal="' + s[0] + '" aria-pressed="' + (cf.senales.indexOf(s[0]) >= 0) + '">' + s[1] + '</button>';
+      }).join('') + '</div></div>';
+    // Abierto en pantallas anchas o si ya hay filtros puestos; plegado en el móvil.
+    $('cli-panel').open = window.innerWidth > 720 || filtrosActivos() > 0;
+
+    $('cf-texto').addEventListener('input', function () {
+      var v = this.value;
+      clearTimeout(cliBuscarT);
+      cliBuscarT = setTimeout(function () { cf.texto = v.trim(); guardarCf(); renderClinicas(); }, 180);
+    });
+    ['municipio', 'cp', 'interaccion', 'proxima', 'toques', 'encaje', 'anuncios', 'orden'].forEach(function (k) {
+      $('cf-' + k).addEventListener('change', function () {
+        cf[k] = this.value;
+        if (k === 'municipio') cf.cp = '';   // un CP de otro municipio dejaría la lista vacía sin decir por qué
+        guardarCf(); renderClinicas();
+      });
+    });
+    cuerpo.querySelectorAll('[data-senal]').forEach(function (b) {
+      b.onclick = function () {
+        var s = b.getAttribute('data-senal'), i = cf.senales.indexOf(s);
+        if (i >= 0) cf.senales.splice(i, 1); else cf.senales.push(s);
+        b.setAttribute('aria-pressed', String(i < 0));
+        guardarCf(); renderClinicas();
+      };
+    });
+  }
+  function quitarFiltrosCli() {
+    var orden = cf.orden;
+    cf = Object.assign({}, CLI_VACIO, { senales: [], orden: orden });   // el orden no es un filtro: se respeta
+    guardarCf();
+    $('cf-texto').value = '';
+    ['interaccion', 'proxima', 'toques', 'encaje', 'anuncios'].forEach(function (k) { $('cf-' + k).value = ''; });
+    document.querySelectorAll('#cli-panel-body [data-senal]').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+    renderClinicas();
+  }
+  // Opciones de municipio y CP sacadas de los datos, con cuántas hay en cada uno.
+  function opcionesLugar() {
+    var cs = clinicas(), sel = function (id) { return $(id); };
+    var rellenar = function (node, valores, valor, etiqueta) {
+      if (!node || document.activeElement === node) return;
+      var claves = Object.keys(valores).sort();
+      if (valor && claves.indexOf(valor) < 0) { claves.push(valor); valores[valor] = 0; }   // no perder un filtro guardado
+      node.innerHTML = '<option value="">Todos</option>' + claves.map(function (k) {
+        return '<option value="' + esc(k) + '"' + (k === valor ? ' selected' : '') + '>' + esc(etiqueta(k)) + ' · ' + valores[k] + '</option>';
+      }).join('');
+    };
+    var munis = {}, cps = {};
+    cs.forEach(function (d) {
+      var m = municipioDe(d); munis[m] = (munis[m] || 0) + 1;
+      var c = cpDe(d); if (c && (!cf.municipio || m === cf.municipio)) cps[c] = (cps[c] || 0) + 1;
+    });
+    rellenar(sel('cf-municipio'), munis, cf.municipio, function (k) { return k; });
+    rellenar(sel('cf-cp'), cps, cf.cp, function (k) { return 'CP ' + k; });
   }
 
   function renderClinicas() {
     if (!$('clinicas-grid')) return;
+    construirCliPanel(); opcionesLugar();
     renderCliFiltros(); renderCliStats();
     var base = clinicas();
-    var vis = cliFiltro === 'todas' ? base : base.filter(function (d) { return (d.estado || 'sin_tocar') === cliFiltro; });
-    vis = vis.slice().sort(function (a, b) {   // encaje alto primero; dentro, por nombre
-      return ((Number(a.encaje) || 9) - (Number(b.encaje) || 9)) || (a.nombre || '').localeCompare(b.nombre || '');
-    });
-    $('clinicas-grid').innerHTML = vis.map(cardClinica).join('') +
+    var vis = ordenarCli(base.filter(function (d) { return pasaCli(d); }));
+    var activos = filtrosActivos();
+    $('cli-activos').textContent = activos ? activos + (activos === 1 ? ' activo' : ' activos') : '';
+    $('cli-count').innerHTML = 'Mostrando ' + vis.length + ' de ' + base.length + ' clínicas' +
+      (activos ? ' <button type="button" class="cli-quitar" id="cli-quitar">✕ Quitar filtros</button>' : '');
+    if ($('cli-quitar')) $('cli-quitar').onclick = quitarFiltrosCli;
+    $('clinicas-grid').innerHTML = (base.length && !vis.length ? '<div class="cli-vacio">Ninguna clínica cumple estos filtros. Prueba a quitar alguno.</div>' : '') +
+      vis.map(cardClinica).join('') +
       '<div class="add-card"><button id="cli-add-toggle" type="button">+ Añadir clínica</button>' +
       '<div class="add-form" id="cli-add-form"><input id="cli-new-nombre" placeholder="Nombre de la clínica"><input id="cli-new-zona" placeholder="Zona (ej. Bilbao · Indautxu)">' +
       '<button class="touch-btn" id="cli-add-confirm" type="button">Guardar clínica</button><span class="save-state err" id="cli-add-err"></span></div></div>';

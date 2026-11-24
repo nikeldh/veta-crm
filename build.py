@@ -92,6 +92,27 @@ EXTRA_CSS = """
   .senal{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:3px 7px;border-radius:5px;background:var(--surface-2);color:var(--ink-soft)}
   .senal.si{background:var(--info-soft);color:var(--info)}
   #cli-mensajes{margin:0 0 14px}
+  /* filtros de Clinicas */
+  .cli-panel{border:1px solid var(--border);border-radius:8px;background:var(--surface);margin:0 0 12px}
+  .cli-panel summary{cursor:pointer;padding:10px 14px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:16px;letter-spacing:.03em;text-transform:uppercase;list-style:none;display:flex;align-items:center;gap:8px}
+  .cli-panel summary::-webkit-details-marker{display:none}
+  .cli-panel summary::after{content:"+";margin-left:auto;font-family:"IBM Plex Mono",monospace}
+  .cli-panel[open] summary::after{content:"–"}
+  .cli-activos{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;text-transform:none;letter-spacing:0;padding:2px 8px;border-radius:999px;background:var(--accent);color:var(--accent-ink)}
+  .cli-activos:empty{display:none}
+  .cli-panel-body{padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+  .cli-panel-body .ancho{grid-column:1/-1}
+  .cli-senales{display:flex;flex-wrap:wrap;gap:6px}
+  .cli-lbl{display:block;margin-bottom:5px;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+  .chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--surface-2);font-weight:500}
+  .cli-acciones{display:flex;justify-content:flex-end;align-items:flex-end}
+  .cli-count{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-soft);margin:-6px 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .cli-quitar{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;color:var(--ink);cursor:pointer}
+  .cli-vacio{grid-column:1/-1;padding:18px;border:1px dashed var(--border);border-radius:8px;color:var(--ink-soft);font-size:14px;text-align:center}
+  .cli-proxima{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:3px 7px;border-radius:5px;align-self:flex-start}
+  .cli-proxima.vencida{background:var(--bad-soft);color:var(--bad);font-weight:600}
+  .cli-proxima.hoy{background:var(--warn-soft);color:var(--warn);font-weight:600}
+  .cli-proxima.futura{background:var(--surface-2);color:var(--ink-soft)}
 """
 # el primer </style> es el del contenedor; el segundo es el del CRM
 i = html.index("</style>", html.index("</style>") + 1)
@@ -120,7 +141,12 @@ sub('  <section class="view" id="view-guion" hidden>',
     '    <div class="cli-meta" id="cli-meta"></div>\n'
     '    <div id="cli-mensajes"></div>\n'
     '    <div class="stats" id="cli-stats"></div>\n'
+    # Filtros (24-nov): lugar, fechas, toques, encaje, anuncios y señales. El panel lo
+    # rellena app.js una sola vez, para que el refresco de cada 20 s no le quite el foco.
+    '    <details class="cli-panel" id="cli-panel"><summary>🔎 Filtrar y ordenar <span class="cli-activos" id="cli-activos"></span></summary>'
+    '<div class="cli-panel-body" id="cli-panel-body"></div></details>\n'
     '    <div class="filters" id="cli-filters"></div>\n'
+    '    <div class="cli-count" id="cli-count" aria-live="polite"></div>\n'
     '    <div class="grid" id="clinicas-grid"></div>\n'
     '  </section>\n\n'
     '  <section class="view" id="view-guion" hidden>')
