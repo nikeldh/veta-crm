@@ -113,6 +113,34 @@ EXTRA_CSS = """
   .cli-proxima.vencida{background:var(--bad-soft);color:var(--bad);font-weight:600}
   .cli-proxima.hoy{background:var(--warn-soft);color:var(--warn);font-weight:600}
   .cli-proxima.futura{background:var(--surface-2);color:var(--ink-soft)}
+  /* guion de Clinicas */
+  #guion-toolbar[hidden],#guion-content[hidden],#guion-clinicas[hidden]{display:none}
+  .g-switch{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;background:var(--surface-2);padding:4px;border-radius:8px;width:fit-content;max-width:100%}
+  .g-switch-btn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:15px;letter-spacing:.03em;text-transform:uppercase;padding:8px 14px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--ink-soft)}
+  .g-switch-btn.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .g-switch-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .gc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .gc-voz{display:flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-soft)}
+  .gc-reglas li{font-size:14px}
+  .gc-mapa td:first-child{white-space:normal}
+  .gc-mapa a{color:var(--ink);font-weight:600}
+  .gc-mapa tr{cursor:pointer}
+  .gc-mapa tr:hover td{background:var(--surface-2)}
+  .gc-caso summary{font-size:14.5px}
+  .gc-caso .gc-tec{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;color:var(--accent);margin-left:6px}
+  .gc-dato{font-size:13.5px;line-height:1.5;margin:0 0 8px}
+  .gc-dato b.k{font-family:"IBM Plex Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);display:block;font-weight:500}
+  .gc-pasos{margin:4px 0 10px;padding-left:20px}
+  .gc-pasos li{font-size:13.5px;line-height:1.55;margin-bottom:5px}
+  .gc-crm{font-size:13px;line-height:1.5;background:var(--info-soft);color:var(--ink);border-radius:6px;padding:8px 10px;margin-top:10px}
+  .gc-plantilla{border:1px solid var(--border);border-radius:7px;background:var(--surface);margin:6px 0}
+  .gc-plantilla summary{cursor:pointer;padding:8px 11px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .gc-plantilla summary::-webkit-details-marker{display:none}
+  .gc-plantilla pre{margin:0;padding:0 11px 11px;white-space:pre-wrap;font-family:"Public Sans",sans-serif;font-size:13.5px;line-height:1.55}
+  .tag-nuevo{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:2px 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-left:6px;vertical-align:middle}
+  .gc-paso{border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:12px 0}
+  .gc-paso h3{font-size:16px;text-transform:none;letter-spacing:0;margin:0 0 4px}
+  .gc-v{white-space:nowrap}
 """
 # el primer </style> es el del contenedor; el segundo es el del CRM
 i = html.index("</style>", html.index("</style>") + 1)
@@ -151,6 +179,18 @@ sub('  <section class="view" id="view-guion" hidden>',
     '  </section>\n\n'
     '  <section class="view" id="view-guion" hidden>')
 
+# Guion de Clinicas (24-nov): aparte del de industria, dentro de la misma pestaña. Un
+# selector arriba elige cual se ve. El de Clinicas no se edita desde el CRM (guion-clinicas.js).
+sub('  <section class="view" id="view-guion" hidden>\n    <div class="g-toolbar">\n      <span class="g-toolbar-hint" id="guion-sync">',
+    '  <section class="view" id="view-guion" hidden>\n'
+    '    <div class="g-switch" role="group" aria-label="Qué guion ver">'
+    '<button type="button" class="g-switch-btn" data-gvista="general">🏭 Industria y servicios</button>'
+    '<button type="button" class="g-switch-btn" data-gvista="clinicas">🦷 Clínicas dentales</button></div>\n'
+    '    <div class="g-toolbar" id="guion-toolbar">\n      <span class="g-toolbar-hint" id="guion-sync">')
+sub('    <div id="guion-content"></div>\n',
+    '    <div id="guion-content"></div>\n'
+    '    <div id="guion-clinicas" hidden></div>\n')
+
 sub('  <footer>',
     '  <section class="view" id="view-actividad" hidden>\n'
     '    <div class="g-toolbar">\n'
@@ -177,7 +217,9 @@ sub('<div class="wrap">',
 
 # sectores.js es propio (sección 05 del guion): build.py no lo genera ni lo pisa.
 # clinicas.js tambien es propio (mensajes de primer contacto del modulo Clinicas).
-html += '<script src="sectores.js"></script>\n<script src="guion.js"></script>\n<script src="clinicas.js"></script>\n<script src="app.js"></script>\n</body></html>\n'
+# guion-clinicas.js es propio: casos, tecnicas y guion de venta de Clinicas (cita las plantillas de clinicas.js).
+html += ('<script src="sectores.js"></script>\n<script src="guion.js"></script>\n<script src="clinicas.js"></script>\n'
+         '<script src="guion-clinicas.js"></script>\n<script src="app.js"></script>\n</body></html>\n')
 html = html.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
 
 io.open(os.path.join(BASE, "index.html"), "w", encoding="utf-8").write(html)

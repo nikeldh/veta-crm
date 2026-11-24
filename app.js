@@ -797,6 +797,139 @@
   }
   $('guion-edit-toggle').onclick = function () { guionEdit = !guionEdit; renderGuion(); };
 
+  // ------------------------------------------------------------ guion de Clínicas (24-nov-2026)
+  // Aparte del de industria, en la misma pestaña. Casos, técnicas y guion de venta en
+  // guion-clinicas.js; los textos que se envían son las plantillas APROBADAS de clinicas.js,
+  // citadas por su código, para que no haya dos copias que se separen. No se edita desde aquí.
+  var GC = window.GUION_CLINICAS || {};
+  var GVISTA_KEY = 'vetaCrmGuionVista', GVOZ_KEY = 'vetaCrmGuionVoz', guionVista = 'general', guionVoz = '';
+  try { guionVista = localStorage.getItem(GVISTA_KEY) || 'general'; guionVoz = localStorage.getItem(GVOZ_KEY) || ''; } catch (e) {}
+
+  // Lo que cambia Janice en las plantillas, tal como lo indican ellas mismas (plantillas.md de
+  // T-044): su presentación y su firma. Nada más. De más larga a más corta, para que una
+  // sustitución no se coma a otra.
+  var A_JANICE = [
+    ['Soy Elkin Dueñas, de Veta Ops, aquí en Bizkaia. Me formé como ingeniero industrial: miro una clínica como una operación, con colas, tiempos y huecos.', 'Soy Janice, de Veta Ops.'],
+    ['Soy Elkin Dueñas, de Veta Ops, en Bizkaia.', 'Soy Janice, de Veta Ops.'],
+    ['Soy Elkin Dueñas, de Veta Ops.', 'Soy Janice, de Veta Ops.'],
+    ['Elkin Dueñas · Veta Ops\ndireccion@veta-ops.com · veta-ops.com', 'Janice [Apellido] · Veta Ops\n[correo de Janice] · veta-ops.com'],
+    ['Elkin Dueñas · Veta Ops\n[teléfono] · direccion@veta-ops.com', 'Janice [Apellido] · Veta Ops\n[teléfono] · [correo de Janice]'],
+    ['Un saludo,\nElkin', 'Un saludo,\nJanice']
+  ];
+  function vozGuion() { return guionVoz || (usuario && /janice/i.test(usuario.nombre || '') ? 'janice' : 'elkin'); }
+
+  function renderGuionClinicas() {
+    var c = $('guion-clinicas');
+    if (!c) return;
+    var voz = vozGuion(), copias = [];
+    var txt = function (t) { return voz === 'janice' ? A_JANICE.reduce(function (s, r) { return s.split(r[0]).join(r[1]); }, t || '') : (t || ''); };
+    var nuevo = '<span class="tag-nuevo" title="Escrito el 24-nov a partir de las plantillas aprobadas; pendiente de que Elkin lo valide">nuevo</span>';
+    var plantillas = function (codigos) {
+      return codigos.map(function (codigo) {
+        var ms = (CLI.mensajes || []).filter(function (m) { return m.titulo === codigo || m.titulo.indexOf(codigo + ' ') === 0; });
+        if (!ms.length) return '<p class="muted">(No encuentro la plantilla ' + esc(codigo) + ' en clinicas.js.)</p>';
+        return ms.map(function (m) {
+          var i = copias.push(txt(m.texto)) - 1;
+          var titulo = voz === 'janice' ? m.titulo.split(' · Elkin').join(' · Janice') : m.titulo;
+          return '<details class="gc-plantilla"><summary>' + esc(titulo) + ' <span class="copy-btn" data-gcopia="' + i + '">copiar</span></summary><pre>' + esc(copias[i]) + '</pre></details>';
+        }).join('');
+      }).join('');
+    };
+    var fila = function (celdas) { return '<tr>' + celdas.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; };
+    var conNuevo = function (s) { return esc(s).replace(' (nuevo)', ' ' + nuevo); };
+    var a = GC.antes || {}, ll = GC.llamada || {};
+
+    c.innerHTML =
+      // Cabecera: objetivo, reglas y con qué voz se ven las plantillas.
+      '<div class="g-section"><div class="gc-head"><h2><span class="g-num">🦷</span>Clínicas dentales: qué hacer en cada caso</h2>' +
+        '<div class="gc-voz">Plantillas con la voz de: ' +
+        [['janice', 'Janice'], ['elkin', 'Elkin']].map(function (v) {
+          return '<button type="button" class="chip' + (voz === v[0] ? ' on' : '') + '" data-gvoz="' + v[0] + '" aria-pressed="' + (voz === v[0]) + '">' + v[1] + '</button>';
+        }).join('') + '</div></div>' +
+        '<p>' + (GC.intro || '') + '</p><ul class="gc-reglas">' + (GC.reglas || []).map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul></div>' +
+
+      '<div class="g-section"><h2><span class="g-num">01</span>Antes del primer toque: su ficha</h2><p>' + (a.texto || '') + '</p>' +
+        '<div class="table-wrap"><table class="g-table"><thead><tr><th>Si en su ficha…</th><th>Pregunta</th><th>Plantilla</th></tr></thead><tbody>' +
+        (a.tabla || []).map(function (r) { return fila([esc(r[0]), esc(r[1]), '<b>' + esc(r[2]) + '</b>']); }).join('') +
+        '</tbody></table></div><p>' + esc(a.nota || '') + '</p></div>' +
+
+      // El mapa: cada situación lleva a su técnica. Pulsar una fila abre el caso.
+      '<div class="g-section"><h2><span class="g-num">02</span>¿Qué caso tienes delante?</h2>' +
+        '<div class="table-wrap"><table class="g-table gc-mapa"><thead><tr><th>Situación</th><th>Técnica</th><th>Cuándo</th></tr></thead><tbody>' +
+        (GC.casos || []).map(function (k) {
+          return '<tr data-gcaso="' + k.id + '"><td>' + k.emoji + ' <a href="#gc-caso-' + k.id + '">' + esc(k.situacion) + '</a></td><td>' + esc(k.tecnica) + (k.nuevo ? nuevo : '') + '</td><td>' + esc(k.cuando) + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        (GC.casos || []).map(function (k) {
+          return '<details class="msg gc-caso" id="gc-caso-' + k.id + '"><summary><span>' + k.emoji + ' ' + esc(k.situacion) + '<span class="gc-tec">→ ' + esc(k.tecnica) + '</span></span></summary><div class="msg-body">' +
+            '<div class="gc-dato"><b class="k">Cuándo</b>' + esc(k.cuando) + '</div>' +
+            '<div class="gc-dato"><b class="k">Cómo</b></div>' +
+            '<ol class="gc-pasos">' + (k.pasos || []).map(function (p) { return '<li>' + p + '</li>'; }).join('') + '</ol>' +
+            plantillas(k.plantillas || []) +
+            '<div class="gc-crm"><b>En el CRM:</b> ' + (k.crm || '') + '</div></div></details>';
+        }).join('') + '</div>' +
+
+      '<div class="g-section"><h2><span class="g-num">03</span>Guion de venta: la llamada de 15 minutos' + nuevo + '</h2>' +
+        '<p>' + (ll.objetivo || '') + '</p>' +
+        (ll.pasos || []).map(function (p, i) {
+          return '<div class="gc-paso"><h3>' + (i + 1) + ' · ' + esc(p.titulo) + '</h3><div class="script-line">«' + esc(p.guion) + '»</div><p>' + (p.nota || '') + '</p></div>';
+        }).join('') +
+        '<div class="gc-crm"><b>Después de colgar:</b> ' + (ll.despues || '') + '</div></div>' +
+
+      '<div class="g-section"><h2><span class="g-num">04</span>Preguntas para descubrir (elige 3 o 4)</h2>' +
+        '<div class="table-wrap"><table class="g-table"><thead><tr><th></th><th>Tema</th><th>Pregunta</th><th>Si hay problema, suele decir</th></tr></thead><tbody>' +
+        (GC.preguntas || []).map(function (q) { return fila(['<span class="mono gc-v">' + esc(q[0]) + '</span>', esc(q[1]), '«' + esc(q[2]) + '»', '<span class="muted">' + esc(q[3]) + '</span>']); }).join('') +
+        '</tbody></table></div><p>' + esc(GC.preguntasNota || '') + '</p></div>' +
+
+      '<div class="g-section"><h2><span class="g-num">05</span>Si te preguntan, o te ponen una objeción</h2>' +
+        '<div class="table-wrap"><table class="g-table"><thead><tr><th>Te dicen</th><th>Respondes</th></tr></thead><tbody>' +
+        (GC.respuestas || []).map(function (r) { return fila(['<b>' + conNuevo(r[0]) + '</b>', esc(r[1])]); }).join('') +
+        '</tbody></table></div></div>' +
+
+      '<div class="g-section"><h2><span class="g-num">06</span>Qué cuenta como conversación</h2>' +
+        '<p><b>Cuenta:</b></p><ul>' + (GC.cuenta || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+        '<p><b>No cuenta nunca:</b></p><ul>' + (GC.noCuenta || []).map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+
+    c.querySelectorAll('[data-gcopia]').forEach(function (b) {
+      b.onclick = function (e) {
+        e.preventDefault(); e.stopPropagation();   // dentro de <summary>: que copiar no pliegue la plantilla
+        navigator.clipboard.writeText(copias[+b.getAttribute('data-gcopia')] || '').then(function () {
+          b.textContent = '✓ copiado'; b.classList.add('done');
+          setTimeout(function () { b.textContent = 'copiar'; b.classList.remove('done'); }, 1500);
+        });
+      };
+    });
+    c.querySelectorAll('[data-gvoz]').forEach(function (b) {
+      b.onclick = function () {
+        guionVoz = b.getAttribute('data-gvoz');
+        try { localStorage.setItem(GVOZ_KEY, guionVoz); } catch (e) {}
+        var abiertos = [].map.call(c.querySelectorAll('details[open][id]'), function (d) { return d.id; });
+        renderGuionClinicas();
+        abiertos.forEach(function (id) { if ($(id)) $(id).open = true; });
+      };
+    });
+    c.querySelectorAll('[data-gcaso]').forEach(function (tr) {
+      tr.onclick = function (e) {
+        e.preventDefault();
+        var d = $('gc-caso-' + tr.getAttribute('data-gcaso'));
+        d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+    });
+  }
+
+  function mostrarGuionVista(v) {
+    guionVista = v === 'clinicas' ? 'clinicas' : 'general';
+    try { localStorage.setItem(GVISTA_KEY, guionVista); } catch (e) {}
+    var cli = guionVista === 'clinicas';
+    $('guion-toolbar').hidden = cli; $('guion-content').hidden = cli; $('guion-clinicas').hidden = !cli;
+    document.querySelectorAll('[data-gvista]').forEach(function (b) {
+      var on = b.getAttribute('data-gvista') === guionVista;
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    });
+    if (cli) renderGuionClinicas();
+  }
+  document.querySelectorAll('[data-gvista]').forEach(function (b) { b.onclick = function () { mostrarGuionVista(b.getAttribute('data-gvista')); }; });
+  mostrarGuionVista(guionVista);
+
   // ------------------------------------------------------------ actividad (solo admin)
   function cargarActividad() {
     $('actividad-list').innerHTML = '<p class="g-toolbar-hint">cargando…</p>';
@@ -821,6 +954,8 @@
       $('tab-btn-' + t).setAttribute('aria-selected', t === w);
     });
     if (w === 'actividad') cargarActividad();
+    // La voz por defecto depende de quién entró: al abrir la pestaña ya se sabe.
+    if (w === 'guion' && guionVista === 'clinicas') renderGuionClinicas();
   }
   TABS.forEach(function (t) { $('tab-btn-' + t).onclick = function () { showTab(t); }; });
 
